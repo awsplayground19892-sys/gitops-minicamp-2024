@@ -4,6 +4,7 @@ terraform {
     bucket         = "dev-params-tfstate"
     key            = "terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "GitopsTerraformLocks"
+    encrypt      = true  
+    use_lockfile = true  
   }
 }
