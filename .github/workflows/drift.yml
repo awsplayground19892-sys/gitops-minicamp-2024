@@ -1,15 +1,60 @@
 name: 'Drift Detection'
 
-#on:
-#  schedule:
-#    - cron: '*/45 * * * *'
-on: workflow_dispatch
+on:
+  workflow_dispatch
+
 jobs:
   detect_drift:
-    uses: ./.github/workflows/plan.yml
+    name: 'Detect Drift'
+    runs-on: ubuntu-latest
+    environment: production
     permissions:
-      contents: read
+      contents: write
       id-token: write
-      pull-requests: write
-    secrets:
-      ROLE_TO_ASSUME: ${{ secrets.ROLE_TO_ASSUME }}
+      issues: write
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Plan (Drift Detection)
+      id: plan
+      run: |
+        terraform plan -detailed-exitcode -out=plan.tfplan || exit_code=$?
+        echo "exit_code=${exit_code:-0}" >> $GITHUB_OUTPUT
+
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update && sudo apt-get install gh -y
+
+    - name: Check for Drift and Create Issue
+      if: steps.plan.outputs.exit_code == '2'
+      run: |
+        echo "Drift detected. Showing plan..."
+        terraform show -no-color plan.tfplan > drift.txt
+        cat drift.txt
+
+        gh issue create \
+          --title "Terraform Drift Detected on $(date +'%Y-%m-%d %H:%M:%S')" \
+          --body "$(cat drift.txt)" \
+          --label "Amazon Q development agent"
