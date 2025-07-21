@@ -1,9 +1,10 @@
 terraform {
-  required_version = "~> 1.9.5"
+  required_version = "~> 1.12.2"
   backend "s3" {
-    bucket         = "gitops-tf-backend"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "GitopsTerraformLocks"
+    bucket       = "dev-params-tfstate"
+    key          = "terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
