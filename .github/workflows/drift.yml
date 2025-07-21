@@ -40,21 +40,21 @@ jobs:
     - name: Terraform Plan (Drift Detection)
       id: plan
       run: |
-        terraform plan -detailed-exitcode -out=plan.tfplan || exit_code=$?
-        echo "exit_code=${exit_code:-0}" >> $GITHUB_OUTPUT
+        terraform plan -no-color -out=plan.tfplan > plan_output.txt || true
+        terraform show -no-color plan.tfplan > drift.txt
 
     - name: Install GitHub CLI
       run: |
         sudo apt-get update && sudo apt-get install gh -y
 
-    - name: Check for Drift and Create Issue
-      if: steps.plan.outputs.exit_code == '2'
+    - name: Check for Drift Message and Create Issue
       run: |
-        echo "Drift detected. Showing plan..."
-        terraform show -no-color plan.tfplan > drift.txt
-        cat drift.txt
-
-        gh issue create \
-          --title "Terraform Drift Detected on $(date +'%Y-%m-%d %H:%M:%S')" \
-          --body "$(cat drift.txt)" \
-          --label "Amazon Q development agent"
+        if grep -q "Objects have changed outside of Terraform" plan_output.txt; then
+          echo "Drift message found!"
+          gh issue create \
+            --title "Terraform Drift Detected on $(date +'%Y-%m-%d %H:%M:%S')" \
+            --body "$(cat drift.txt)" \
+            --label "Amazon Q development agent"
+        else
+          echo "✅ No drift detected."
+        fi
